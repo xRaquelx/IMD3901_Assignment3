@@ -9,7 +9,7 @@ public class Timer : MonoBehaviour
 
     private float timer = 0f;
 
-    private bool isTimerRunning = false;
+    public bool isTimerRunning = false;
     
     void Start()
     {
@@ -41,5 +41,10 @@ public class Timer : MonoBehaviour
                 startTimerText.gameObject.SetActive(false);
             }     
         }            
+    }
+
+    public void StopTimer()
+    {
+        isTimerRunning = false;
     }
 }

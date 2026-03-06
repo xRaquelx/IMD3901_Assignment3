@@ -1,7 +1,54 @@
-using TMPro;
-using UnityEngine;
+//using TMPro;
+//using UnityEngine;
+//using System.Collections;
 
-public class UnlockDoor : MonoBehaviour
+//public class UnlockDoor : MonoBehaviour
+//{
+//    public int requiredKeys = 4;
+
+//    public GameObject door;
+//    public float openSpeed = 2f;
+//    public Transform openedPosition;
+
+//    public TextMeshProUGUI doorText;
+
+//    private Coroutine openRoutine;
+//    private bool doorOpened = false;
+
+//    void Start()
+//    {
+//        doorText.gameObject.SetActive(false);
+//    }
+
+//    public void OpenDoor()
+//    {
+//        doorText.gameObject.SetActive(true);
+//        doorText.text = "Door is Opening";
+//        if (openRoutine != null)
+//            StopCoroutine(openRoutine);
+//        openRoutine = StartCoroutine(SlideDoorToOpen());
+//    }
+
+//    IEnumerator SlideDoorToOpen()
+//    {
+//        while (Vector3.Distance(door.transform.position, openedPosition.position) > 0.01f)
+//        {
+//            door.transform.position = Vector3.MoveTowards(door.transform.position, openedPosition.position, openSpeed * Time.deltaTime);
+
+//            yield return null;
+//        }
+//        door.transform.position = openedPosition.position;
+//        doorOpened = true;
+//        doorText.gameObject.SetActive(false);
+//    }
+//}
+
+using TMPro;
+using Unity.Netcode;
+using UnityEngine;
+using System.Collections;
+
+public class UnlockDoor : NetworkBehaviour
 {
     public int requiredKeys = 4;
 
@@ -9,40 +56,79 @@ public class UnlockDoor : MonoBehaviour
     public float openSpeed = 2f;
     public Transform openedPosition;
 
-    public GameObject finishWall;
-
-    private bool doorOpened = false;
-    private bool playerFinished = false;
-
     public TextMeshProUGUI doorText;
+
+    private Coroutine openRoutine;
+
+    public NetworkVariable<bool> doorOpened = new NetworkVariable<bool>(
+        false,
+        NetworkVariableReadPermission.Everyone,
+        NetworkVariableWritePermission.Server
+    );
 
     void Start()
     {
-        doorText.gameObject.SetActive(false);
+        if (doorText != null)
+            doorText.gameObject.SetActive(false);
     }
 
-    void Update()
+    public override void OnNetworkSpawn()
     {
-        
+        doorOpened.OnValueChanged += OnDoorOpenedChanged;
+
+        if (doorOpened.Value)
+        {
+            if (door != null && openedPosition != null)
+                door.transform.position = openedPosition.position;
+        }
     }
 
-    public void OpenDoor()
+    public override void OnNetworkDespawn()
     {
-        doorText.gameObject.SetActive(true);
-        doorText.text = "Door is Opening";
-        //float newX = Mathf.MoveTowards(door.transform.position.x, openedPosition.position.x, openSpeed * Time.deltaTime);
-        //door.transform.position = new Vector3(newX, door.transform.position.y, door.transform.position.z);
-        //if (Mathf.Abs(door.transform.position.x - openedPosition.position.x) < 0.1f)
-        //{
-        //    door.transform.position = new Vector3(openedPosition.position.x, door.transform.position.y, door.transform.position.z);
-        //    doorOpened = true;
-        //    doorText.gameObject.SetActive(false);
-        //}
+        doorOpened.OnValueChanged -= OnDoorOpenedChanged;
+    }
 
-        //if (current door position is at the open door position)
-        //{
-        //    doorOpened = true;
-        //    doorText.gameObject.SetActive(false);
-        //}
+    private void OnDoorOpenedChanged(bool oldValue, bool newValue)
+    {
+        if (newValue)
+        {
+            if (doorText != null)
+            {
+                doorText.gameObject.SetActive(true);
+                doorText.text = "Door is Opening";
+            }
+
+            if (openRoutine != null)
+                StopCoroutine(openRoutine);
+
+            openRoutine = StartCoroutine(SlideDoorToOpen());
+        }
+    }
+
+    [ServerRpc(RequireOwnership = false)]
+    public void TryOpenDoorServerRpc()
+    {
+        if (doorOpened.Value) return;
+
+        doorOpened.Value = true;
+    }
+
+    IEnumerator SlideDoorToOpen()
+    {
+        while (Vector3.Distance(door.transform.position, openedPosition.position) > 0.01f)
+        {
+            door.transform.position = Vector3.MoveTowards(
+                door.transform.position,
+                openedPosition.position,
+                openSpeed * Time.deltaTime
+            );
+
+            yield return null;
+        }
+
+        door.transform.position = openedPosition.position;
+
+        if (doorText != null)
+            doorText.gameObject.SetActive(false);
     }
 }
