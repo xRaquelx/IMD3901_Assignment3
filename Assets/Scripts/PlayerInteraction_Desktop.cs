@@ -86,7 +86,6 @@ public class PlayerInteraction_Desktop : NetworkBehaviour
     public float interactRange = 5f;
     public Camera playerCam;
 
-    public TextMeshProUGUI keyCounter;
     public TextMeshProUGUI interactText;
 
     // Shared key count for BOTH players
@@ -96,38 +95,40 @@ public class PlayerInteraction_Desktop : NetworkBehaviour
         NetworkVariableWritePermission.Server
     );
 
-    public int desiredKeyAmount = 4;
+    public NetworkVariable<int> sharedKeyCount2;
 
-    //public UnlockDoor unlockDoor;
+    public int desiredKeyAmount = 8;
+
+    public UnlockDoor unlockDoor;
 
     void Start()
     {
         if (!IsOwner)
         {
-            // Only owner should control this player's interaction raycast/UI input
             enabled = false;
             return;
         }
-
-        UpdateKeyCounter(sharedKeyCount.Value);
+        //UpdateKeyCounter(sharedKeyCount.Value);
         interactText.gameObject.SetActive(false);
     }
 
-    public override void OnNetworkSpawn()
-    {
-        sharedKeyCount.OnValueChanged += OnSharedKeyCountChanged;
-    }
+    //public override void OnNetworkSpawn()
+    //{
+    //    sharedKeyCount.OnValueChanged += OnSharedKeyCountChanged;
+    //}
 
-    public override void OnNetworkDespawn()
-    {
-        sharedKeyCount.OnValueChanged -= OnSharedKeyCountChanged;
-    }
+    //public override void OnNetworkDespawn()
+    //{
+    //    sharedKeyCount.OnValueChanged -= OnSharedKeyCountChanged;
+    //}
 
-    private void OnSharedKeyCountChanged(int oldValue, int newValue)
-    {
-        UpdateKeyCounter(newValue);
-    }
+    //private void OnSharedKeyCountChanged(int oldValue, int newValue)
+    //{
+    //    UpdateKeyCounter(newValue);
+    //}
 
+
+  
     void Update()
     {
         if (!IsOwner) return;
@@ -138,75 +139,73 @@ public class PlayerInteraction_Desktop : NetworkBehaviour
 
         if (Physics.Raycast(ray, out hit, interactRange))
         {
-            // KEY
             if (hit.collider.CompareTag("Key"))
             {
                 interactText.gameObject.SetActive(true);
                 interactText.text = "Press F to take Key";
-
                 if (Keyboard.current.fKey.wasPressedThisFrame)
                 {
                     NetworkObject netObj = hit.collider.GetComponent<NetworkObject>();
                     if (netObj != null)
                     {
                         PickUpKeyServerRpc(netObj.NetworkObjectId);
+                        PickUpKeyClientRpc(netObj.NetworkObjectId);
                     }
                 }
-
                 return;
             }
 
-            // DOOR
             if (hit.collider.CompareTag("Door"))
             {
                 interactText.gameObject.SetActive(true);
-
                 if (sharedKeyCount.Value >= desiredKeyAmount)
                 {
                     interactText.text = "Press E to Unlock the Door";
-
                     if (Keyboard.current.eKey.wasPressedThisFrame)
                     {
-                        //unlockDoor.TryOpenDoorServerRpc();
+                        unlockDoor.TryOpenDoorServerRpc();
                         Debug.Log("Open");
                     }
                 }
                 else
-                {
                     interactText.text = "You do not have enough Keys";
-                }
-
                 return;
             }
 
-            // BUTTON
             if (hit.collider.CompareTag("Button"))
             {
                 interactText.gameObject.SetActive(true);
                 interactText.text = "Press E to Finish the Game";
-
                 if (Keyboard.current.eKey.wasPressedThisFrame)
                 {
                     ButtonInteraction button = hit.collider.GetComponent<ButtonInteraction>();
                     if (button != null)
-                    {
                         button.PressButtonServerRpc();
-                    }
                 }
-
                 return;
             }
-
             interactText.gameObject.SetActive(false);
         }
         else
-        {
             interactText.gameObject.SetActive(false);
-        }
     }
 
     [ServerRpc(RequireOwnership = false)]
     private void PickUpKeyServerRpc(ulong keyNetworkObjectId)
+    {
+        if (!NetworkManager.SpawnManager.SpawnedObjects.TryGetValue(keyNetworkObjectId, out NetworkObject keyObject))
+            return;
+
+        if (!keyObject.IsSpawned) 
+            return;
+
+        sharedKeyCount.Value++;
+
+        keyObject.Despawn(true);
+    }
+
+    [ClientRpc]
+    private void PickUpKeyClientRpc(ulong keyNetworkObjectId)
     {
         if (!NetworkManager.SpawnManager.SpawnedObjects.TryGetValue(keyNetworkObjectId, out NetworkObject keyObject))
             return;
@@ -216,9 +215,9 @@ public class PlayerInteraction_Desktop : NetworkBehaviour
         keyObject.Despawn(true);
     }
 
-    private void UpdateKeyCounter(int count)
-    {
-        if (keyCounter != null)
-            keyCounter.text = "Key Count: " + count.ToString();
-    }
+    //private void UpdateKeyCounter(int count)
+    //{
+    //    if (keyCounter != null)
+    //        keyCounter.text = "Key Count: " + count.ToString();
+    //}
 }

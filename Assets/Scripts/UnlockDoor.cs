@@ -50,7 +50,7 @@ using System.Collections;
 
 public class UnlockDoor : NetworkBehaviour
 {
-    public int requiredKeys = 4;
+    public int requiredKeys = 8;
 
     public GameObject door;
     public float openSpeed = 2f;
